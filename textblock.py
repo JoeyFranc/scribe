@@ -47,6 +47,36 @@ class TextBlock(object):
         # REPRESENTATION BUT DO WHAT YOU WILL
         self.corners = [ tl, bl, br, tr ]
 
+    def __init__(self, corners):
+    # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
+    #       of the TextBlock
+    #
+    # By default, text blocks are unindented, left allgined, paragraph blocks
+
+        tl = corners[0]
+        bl = corners[1]
+        br = corners[2]
+        tr = corners[3]
+
+        # Text
+        self.text = ''
+
+        # Bounds
+        self.left  = (tl[0]+bl[0])/2
+        self.right = (tr[0]+br[0])/2
+        self.top   = (tl[1]+tr[1])/2
+        self.bot   = (bl[1]+br[1])/2
+
+        # Style information
+        self.indent = None
+        self.heading = None
+        self.list = None
+        self.allign = LEFT
+
+        # Actual corners KEPT FOR TESTING PURPOSES, I LIKE THE RECTANGLE
+        # REPRESENTATION BUT DO WHAT YOU WILL
+        self.corners = [ tl, bl, br, tr ]
+
     def __repr__(self):
     # Used by print keyword.
 
