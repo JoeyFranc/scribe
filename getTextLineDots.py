@@ -5,9 +5,8 @@ Find bottom points of each line of text that could do robust linear regression o
 Dots are shown in green circles (r = 1 pixel)
 '''
 
-def getTextLineBox(infileName):
-    image = cv2.imread(infileName)
-    gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY) # grayscale
+def getTextLineBox(gray):
+
     _,thresh = cv2.threshold(gray,150,255,cv2.THRESH_BINARY_INV) # threshold
     kernel = cv2.getStructuringElement(cv2.MORPH_CROSS,(3,3))
     dilated = cv2.dilate(thresh,kernel,iterations = 2) # need calibration on this for different format
@@ -27,11 +26,7 @@ def getTextLineBox(infileName):
             continue
 
         for i in range(x, x+w, 1):
-            cv2.circle(image, (x+i,y+h), 1, (0,255,0))  # illustrate
+            #cv2.circle(image, (x+i,y+h), 1, (0,255,0))  # illustrate
             pts.append((x+i,y+h))
 
     return pts
-    cv2.imwrite("contoured.jpg", image)
-if __name__ == '__main__':
-    pts = getTextLineBox("handwrite.png")
-    print pts

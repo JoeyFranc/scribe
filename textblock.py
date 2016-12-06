@@ -25,38 +25,8 @@ NUMBER = 2
 
 class TextBlock(object):
 
-    def __init__(self, tl, bl, br, tr):
-    # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
-    #       of the TextBlock
-    #
-    # By default, text blocks are unindented, left allgined, paragraph blocks
-
-        # Bounds
-        self.left  = (tl[0]+bl[0])/2
-        self.right = (tr[0]+br[0])/2
-        self.top   = (tl[1]+tr[1])/2
-        self.bot   = (bl[1]+br[1])/2
-
-        # Style information
-        self.indent = None
-        self.heading = None
-        self.list = None
-        self.allign = LEFT
-
-        # Actual corners KEPT FOR TESTING PURPOSES, I LIKE THE RECTANGLE
-        # REPRESENTATION BUT DO WHAT YOU WILL
-        self.corners = [ tl, bl, br, tr ]
-
-    def __init__(self, corners):
-    # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
-    #       of the TextBlock
-    #
-    # By default, text blocks are unindented, left allgined, paragraph blocks
-
-        tl = corners[0]
-        bl = corners[1]
-        br = corners[2]
-        tr = corners[3]
+    def init_values(self, tl, bl, br, tr):
+    # Inits all values of a TextBlock object
 
         # Text
         self.text = ''
@@ -76,6 +46,28 @@ class TextBlock(object):
         # Actual corners KEPT FOR TESTING PURPOSES, I LIKE THE RECTANGLE
         # REPRESENTATION BUT DO WHAT YOU WILL
         self.corners = [ tl, bl, br, tr ]
+
+    def __init__(self, tl, bl, br, tr):
+    # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
+    #       of the TextBlock
+    #
+    # By default, text blocks are unindented, left allgined, paragraph blocks
+        
+        self.init_values( tl,bl,br,tr )
+
+    def __init__(self, corners):
+    # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
+    #       of the TextBlock
+    #
+    # By default, text blocks are unindented, left allgined, paragraph blocks
+
+        tl = corners[0]
+        bl = corners[1]
+        br = corners[2]
+        tr = corners[3]
+
+        # Call same __init__ function
+        self.init_values( tl,bl,br,tr )
 
     def __repr__(self):
     # Used by print keyword.
@@ -117,4 +109,3 @@ class TextBlock(object):
     
         return self.left <= point[0] and point[0] <= self.right and \
                self.top  <= point[1] and point[1] <= self.bot
-
