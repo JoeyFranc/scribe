@@ -54,6 +54,7 @@ def recWhiteSpace(bound, rectangles):
         if q > 0:
             break
         if not obstacles:
+            if b.h / b.w < 3: continue
             white_spaces.append(b)
             if len(white_spaces) == 10:
                 break
@@ -70,7 +71,7 @@ def recWhiteSpace(bound, rectangles):
             rect_u = block.TextBlock(b.x, b.y, b.w, pivot.y-b.y)
             rect_d = block.TextBlock(b.x, pivot.y+pivot.h, \
                                          b.w, b.h-pivot.h-pivot.y+b.y)
-            subrects = [rect_l, rect_r, rect_u, rect_d] 
+            subrects = [rect_l, rect_r, rect_u, rect_d]
             # check through subrects
             for sub_b in subrects:
                 sub_q = area(sub_b)
@@ -80,7 +81,7 @@ def recWhiteSpace(bound, rectangles):
     return white_spaces
 
 if __name__ == "__main__":
-    img_name = "./test/test4.png"
+    img_name = "./white.png"
     im = cv2.imread(img_name, 0)
     h,w = im.shape
     obstacles = recTextBlocks(img_name)
@@ -94,6 +95,7 @@ if __name__ == "__main__":
         h = white_space.h
         cv2.rectangle(im, (x,y), (x+w, y+h), (0,255,0), 2)
 
-    cv2.imshow('im', im)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    cv2.imwrite("result.png", im)
+    #cv2.imshow('im', im)
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()

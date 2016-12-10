@@ -50,7 +50,7 @@ def recTextBlocks(img_name):
     im_thre = im_thre * 255
 
     # find contours
-    ctrs, hierarchy = cv2.findContours(im_thre.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    _, ctrs, hierarchy = cv2.findContours(im_thre.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     obstacles = []
     for ctr in ctrs:
         x,y,w,h = cv2.boundingRect(ctr)
@@ -58,7 +58,3 @@ def recTextBlocks(img_name):
 
     # return recognized rectangles for whitespace recognition
     return obstacles
-
-if __name__ == "__main__":
-    img_name = "./test/test2.png"
-    recTextBlocks(img_name)
