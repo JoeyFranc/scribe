@@ -12,7 +12,7 @@ def getTextLineBox(infileName):
     _,thresh = cv2.threshold(gray,150,255,cv2.THRESH_BINARY_INV) # threshold
     kernel = cv2.getStructuringElement(cv2.MORPH_CROSS,(3,3))
 	# preprocess
-    dilated = cv2.dilate(thresh,kernel,iterations = 5) # need calibration on this for different format
+    dilated = cv2.dilate(thresh,kernel,iterations = 3) # need calibration on this for different format
     out, contours, hierarchy = cv2.findContours(dilated,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE) # get contours
 
     # for each contour found, draw a rectangle around it on original image
@@ -27,7 +27,7 @@ def getTextLineBox(infileName):
         if w < 8 or h < 8:
             continue
 
-        if w > 50 or h > 50:
+        if w/h > 20:
             continue
 
         # draw rectangle around contour on original image
