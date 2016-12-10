@@ -38,6 +38,7 @@ class TextBlock(object):
         self.bot   = (bl[1]+br[1])/2
 
         # Style information
+        self.line = None
         self.indent = None
         self.heading = None
         self.list = None
@@ -85,9 +86,9 @@ class TextBlock(object):
 
         # Return formatted version of text
         return \
-        '<b:[ l:{0} b:{1} r:{2} t:{3} ] i:{4} h:{5} l:{6} a:{7}>'.format(
+        '<b:[ {0} {1} {2} {3} ] l:{8} i:{4} h:{5} l:{6} a:{7}>'.format(
             self.left, self.bot, self.right, self.top,
-            self.indent, self.heading, list_type, allign
+            self.indent, self.heading, list_type, allign, self.line
         )
 
     def same_style(self, tb):
