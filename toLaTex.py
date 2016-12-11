@@ -21,6 +21,15 @@ CENTER_BEGIN = '\\'+'begin{center}'
 CENTER_END = '\\'+'end{center}'
 LEFT_BEGIN = '\\'+ 'begin{flushleft}'
 LEFT_END = '\\'+'end{flushleft}'
+SEC_HEADING_ONE = '\\'+'section*'
+SEC_HEADING_TWO = '\\'+'subsection*'
+SEC_HEADING_THREE = '\\'+'subsubsection*'
+BEGIN = '\\'+'begin{document}\n'
+END = '\\'+'end{document}\n'
+DOC_CLASS = '\\' + 'documentclass[a4paper,12pt]{article}\n'
+PACKAGES = '\\'+'usepackage[margin=1in]{geometry}\n'+
+           '\\'+'usepackage{enumitem}\n'
+
 
 # assume the block passed is of heading type
 def makeTitle(blockIn):
@@ -59,23 +68,57 @@ def makeList(blocksIn):
 # pass a plain paragraph
 def alignText(blockIn):
     outStr = ''
+    '''Begin'''
     if blockIn.allign == 1:     # center
         outStr += CENTER_BEGIN + '\n'
     elif blockIn.allign == 2:   # right
         outStr += RIGHT_BEGIN + '\n'
     outStr += blockIn.text
+    '''End'''
     if blockIn.allign == 1:     # center
         outStr += CENTER_END + '\n'
     elif blockIn.allign == 2:   # right
         outStr += RIGHT_END + '\n'
     return outStr
 
+def makeHeading(blockIn):
+    outStr = ''
+    if block.heading == 0:      # level one heading
+        outStr = SEC_HEADING_ONE + '{' + block.text + '}\n'
+    elif block.heading == 1:
+        outStr = SEC_HEADING_TWO + '{' + block.text + '}\n'
+    elif block.heading == 2:
+        outStr = SEC_HEADING_THREE + '{' + block.text + '}\n'
+    return outStr
+
+# process all the blocks
+def parseAll(blocksIn):
+    outStr = ''
+    outStr += DOC_CLASS + PACKAGES
+    outStr+=BEGIN
+    tempBlockList = []
+    for block in blocksIn:
+        if block.list is not None:    # read a block
+            tempBlockList.append(block)
+        else:
+            if len(tempBlockList) > 0:
+                outStr += makeList(tempBlockList)
+                del tempBlockList[:]    # clear list
+            if block.heading is not None: # read a heading
+                headStr = makeHeading(block)
+                outStr += headStr
+            elif block.align != LEFT:
+                outStr += alignText(block)
+            else:
+                outStr += block.text + '\n'
+    outStr+=END
+    return outStr
 
 
-def writeFile():
+def writeFile(blocksIn):
     # output file
     filename = 'out.tex'
-    outfile = open(filename, 'a')
-    # TO DO: WRITE TO .tex FILE
-
+    outfile = open(filename, 'w')
+    outStr = parseAll(blocksIn)
+    outfile.write(outStr)
     outfile.close()
