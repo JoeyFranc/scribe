@@ -48,27 +48,35 @@ class TextBlock(object):
         # REPRESENTATION BUT DO WHAT YOU WILL
         self.corners = [ tl, bl, br, tr ]
 
-    def __init__(self, tl, bl, br, tr):
+    def __init__(self, *args):
     # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
     #       of the TextBlock
     #
     # By default, text blocks are unindented, left allgined, paragraph blocks
         
-        self.init_values( tl,bl,br,tr )
+        if len(args) == 1:
+            corners = args[0]
+            tl = tuple(corners[0])
+            bl = tuple(corners[1])
+            br = tuple(corners[2])
+            tr = tuple(corners[3])
+            self.init_values( tl,bl,br,tr )
 
-    def __init__(self, corners):
-    # ARGS: The TopLeft, TopRight, BottomLeft, and BottomRight coordinates
-    #       of the TextBlock
-    #
-    # By default, text blocks are unindented, left allgined, paragraph blocks
+        elif len(args) == 2:
+            tl = tuple(args[0])
+            bl = tuple([args[0][0],args[1][1]])
+            br = tuple(args[1])
+            tr = tuple([args[1][0],args[0][1]])
+            self.init_values( tl,bl,br,tr )
 
-        tl = corners[0]
-        bl = corners[1]
-        br = corners[2]
-        tr = corners[3]
+        elif len(args) == 4:
+            tl = tuple(args[0])
+            bl = tuple(args[1])
+            br = tuple(args[2])
+            tr = tuple(args[3])
+            self.init_values( tl,bl,br,tr )
 
-        # Call same __init__ function
-        self.init_values( tl,bl,br,tr )
+        else: raise Exception('Invalid Number of arguments')
 
     def __repr__(self):
     # Used by print keyword.

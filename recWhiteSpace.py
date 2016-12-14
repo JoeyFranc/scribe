@@ -11,8 +11,8 @@ def area(bound):
 
 # need improvement
 def pickPivot(bound, rectangles):
-    mid_x = bound.x + w / 2
-    mid_y = bound.y + h / 2
+    mid_x = bound.x + bound.w / 2
+    mid_y = bound.y + bound.h / 2
     min_dist = -1
     for rect in rectangles:
         dist = math.sqrt((rect.x - mid_x)**2 + (rect.y - mid_y)**2)

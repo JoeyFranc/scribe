@@ -11,14 +11,13 @@ import scipy.signal
 def rgb2gray(rgb):
     return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
-def preprocess(infile):
-    img = np.asarray(Image.open(infile).convert('RGB'))     # read in image
-    img = rgb2gray(img)     # turn the image into grayscale
-    G_rst = scipy.ndimage.filters.gaussian_filter(img, 1,order=0, output=None,
+def preprocess(img):
+
+    G_rst = scipy.ndimage.filters.gaussian_filter(rgb2gray(img), 1,order=0, output=None,
                                         mode='reflect', cval=0.0, truncate=4.0)
     # apply median filter
     M_rst = scipy.signal.medfilt(G_rst, kernel_size=3)
-    return M_rst
+    return np.uint8(np.around(M_rst))
 
 if __name__ == '__main__':
     out = preprocess('handwrite.png')

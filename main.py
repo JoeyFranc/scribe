@@ -1,33 +1,61 @@
 import cv2 as cv
-import block
+import numpy as np
+import sys
+from textblock import TextBlock
+from block import TextBlock as Obstacle
+from preprocess import preprocess
+from orient import fixSkew
+from recTextBlock import recTextBlocks
+from recWhiteSpace import recWhiteSpace
+from components import get_components
+from getLines import get_lines
 import tbformat
-import getTextLineDots
-import grayscale
-import orient
-import textblock
 
 
 
-# The whole program
-if __name__ == '__main__':
+def get_line_params(characters):
+# Returns x_height and descender line distance of characters
 
-    pages = []
-    for file_name in sys.argv[1:]:
+    x_height = np.median( [(h) for (x,y,w,h) in characters] )
+    d_line   = x_height/2
+    return (x_height, d_line)
 
-        # Open an image
-        img = cv.imread(file_name)
 
-        # Preprocess
-        img = rgb2gray.rgb2gray(img)
-        img = orient.fixSkew(img)
-        
-        # Doc Layout analysis
-        white_spaces = recWhiteSpace.recWhiteSpace(img)
-        letters = getTextLineDots.getTextLineBox(img)
-        text_lines = getLines.get_constrained_lines(letters, obstacles)
-        tbformat.format(text_lines)
 
-        # Optical Character Recognition
-        # Make a Latex file
+pages = []
+for file_name in sys.argv[1:]:
 
-    print pages
+    # Preprocess
+    image = cv.imread(file_name)
+    img = preprocess(image)
+    img = fixSkew(img)
+    
+    # Doc Layout analysis
+    img_h,img_w = img.shape
+    obstacles = recTextBlocks(file_name)
+    white_spaces = recWhiteSpace(Obstacle(0,0,img_w,img_h), obstacles)
+    white_spaces = [TextBlock((obs.x,obs.y), (obs.x+obs.w,obs.y+obs.h))
+                    for obs in white_spaces]
+    characters = get_components(img)
+    x_height, d_line = get_line_params(characters)
+    char_points = [ np.array([x+w/2, y+h]) for (x,y,w,h) in characters ]
+    #for (x,y,w,h) in characters: cv.rectangle(img, (x,y), (x+w,y+h), (0,0,255),2)
+    #for p in char_points: cv.circle(image, tuple(p),3,(0,255,0),2)
+    text_lines = get_lines(
+
+        (img_h,img_w), char_points, white_spaces, (x_height/2,d_line)
+
+    )
+    print min( [len(pts) for ((r,theta),pts) in text_lines] )
+    # Draw the lines gotten by this algorithm
+    for ((r,theta),pts) in text_lines:
+        unit = np.array([np.cos(theta),np.sin(theta)])
+        dist0 = np.dot(unit, pts[0]-(r*unit) )
+        dist1 = np.dot(unit, pts[-1]-(r*unit) )
+        cv.line(img, tuple((pts[0]-dist0*unit).astype(int)), 
+            tuple((pts[-1]-dist1*unit).astype(int)), (0,0,255), 1)
+    cv.imwrite('lines.jpg', img)
+    #tbformat.format(text_lines)
+
+    # Optical Character Recognition
+    # Make a Latex file

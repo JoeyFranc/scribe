@@ -45,6 +45,13 @@ def fixSkew( img ):
     edges = cv.Canny(img, 50, 200)
     skew_angle = cv.HoughLines(edges, 1, np.pi/180, 1)[0][0][1]
 
+    # Correct skew angle so that we don't have images rotated in the wrong way
+    if(np.pi/4 < skew_angle and skew_angle < 3*np.pi/4) or \
+    (5*np.pi/4 < skew_angle and skew_angle < 7*np.pi/4):
+
+        skew_angle -= np.pi/2
+        skew_angle %= 2*np.pi
+
     # Calculate the pivot, new dimensions, and rotation matrix for a new image
     h,w = img.shape
     cos = np.cos(skew_angle)
