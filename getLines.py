@@ -1,14 +1,14 @@
 import numpy as np
 import cv2 as cv
 import math
-from heapq import heapq
+from Queue import PriorityQueue
 from copy import deepcopy
 
 
 
 ANGLE_THRESH_DEGREES = .5
 ANGLE_THRESH = ANGLE_THRESH_DEGREES*np.pi/180
-QUALITY_THRESH = 1 - .4**2
+QUALITY_THRESH = 1 - .3**2
 global EPSILON_SQR
 
 
@@ -160,10 +160,10 @@ class is_accurate:
             # Calculate final line and its quality
             theta_avg = np.mean(linebox[0])
             r_avg = np.mean(linebox[1])
-            theta = int(3*(theta_avg-self.min_angle)/ANGLE_THRESH)
-            r = int(3*(r_avg-self.min_line)/line_thresh)
             new_quality, new_points = \
             quality(((theta_avg, theta_avg),(r_avg,r_avg)), points, d)
+            theta = int(3*(theta_avg-self.min_angle)/ANGLE_THRESH)
+            r = int(3*(r_avg-self.min_line)/line_thresh)
 
             # Get any adjacent lines
             adj_lines = []
@@ -186,26 +186,67 @@ class is_accurate:
             return True
 
         return False
+
+    def output(self):
+    # Present output
+
+        lines = []
+        for row in self.lines:
+            for line in row:
+                if line is not None: lines += [line]
+
+        return lines
+
+def has_intersection(set1, set2):
+# True if set1 and set2 have an intersection
+
+    for point1 in set1:
+        for point2 in set2:
+            if np.array_equal(point1,point2): return True
+
+    return False
+
+
                     
-#        lb = ((new_line[0],new_line[0]),(new_line[1],new_line[1]))
-#        new_quality, points = quality(lb, points, d)
-#        # This line is a near duplicate of a previous line
-#        for line in lines:
-#            # These lines are too similar to coexist
-#            if (abs(line[1][0] - new_line[0]) < 2*ANGLE_THRESH and \
-#            abs(line[1][1] - new_line[1]) < 2*line_thresh):# or \
-##            is_subseq(points,line[2]):
-#
-#                # The new_line is more accurate.  Replace the old
-#                if line[0] < new_quality: line = (new_quality, new_line, points)
-#                # Stop searching for duplicates
-#                return True
-#    
-#        # This line is not a duplicate
-#        lines += [ (new_quality, new_line, points) ]
-#        return True
-#
-#    return False
+def small_enough(linebox, points, line_thresh, lines, d):
+    # This line meets the threshold
+    if abs(linebox[0][0]-linebox[0][1]) < ANGLE_THRESH and \
+    abs(linebox[1][0]-linebox[1][1]) < line_thresh:
+
+        theta_avg = np.mean(linebox[0])
+        r_avg = np.mean(linebox[1])
+        new_line = (theta_avg, r_avg)
+        lb = ((new_line[0],new_line[0]),(new_line[1],new_line[1]))
+        new_quality, points = quality(lb, points, d)
+        # This line is a near duplicate of a previous line
+        duplicate_found = False
+        i = 0
+        while i < len(lines):
+            # These lines are too similar to coexist
+            if (abs(lines[i][1][0] - new_line[0]) < 2*ANGLE_THRESH and \
+            abs(lines[i][1][1] - new_line[1]) < 2*line_thresh) or \
+            has_intersection(points,lines[i][2]):
+
+                j = 0
+                # The new_line is more accurate.  Replace the old
+                if not duplicate_found:
+                    if new_line[0] < new_quality: lines[i] = (new_quality, new_line, points)
+                    # Stop searching for duplicates
+                    duplicate_found = True
+                    j = i
+                    i += 1
+                # Absorb other duplicates
+                else:
+                    if lines[j][0] < lines[i][j]: lines[j] = lines[i]
+                    lines = lines[:i] + lines[i+1:]
+
+            else: i+=1
+    
+        # This line is not a duplicate
+        if not duplicate_found: lines += [ (new_quality, new_line, points) ]
+        return True
+
+    return False
 
 def only_intersection(linebox, obstacle):
 # The value is True if there is an intersection between any of the 
@@ -297,10 +338,6 @@ def enqueue_lb( queue, sub_linebox, points, obs, d ):
     sub_quality, sub_points = quality(sub_linebox, points, d)
     if sub_points and sub_quality/len(sub_points) > QUALITY_THRESH:
 
-        assert type(sub_quality) != type(np.array([]))
-        assert type(sub_linebox) != type(np.array([]))
-        assert type(sub_points) != type(np.array([]))
-        assert type(obs) != type(np.array([]))
         queue.put((
             -sub_quality,
             sub_linebox,
@@ -327,32 +364,31 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
     max_line = img_w/np.sqrt(2)+img_h/np.sqrt(2)
 
     # Functor for terminating splits and adding accepted lines
-    acceptor = is_accurate( min_angle, max_angle, min_line, max_line, line_thresh)
+    #acceptor = is_accurate( min_angle, max_angle, min_line, max_line, line_thresh)
+    lines = []
     
     # The initial bounds of the linebox
     # (All possible lines within 45 degrees of being horizontal)
     linebox = (
     
-        np.array([min_angle, max_angle]),
-        np.array([min_line, max_line])
+        [min_angle, max_angle],
+        [min_line, max_line]
 
     )
 
     # Keep track of things in a priority queue
     queue = PriorityQueue()
     queue.put( (-len(points), linebox, points, obstacles) )
-    x = -1
     while not queue.empty():
 
-        x+=1
-        if x == 2891:
-            pass
         # Get the linebox with the highest upperbound on quality
         ub_quality, lb, points_p, obs_p = queue.get()
         ub_quality *= -1
+        if lines:
+            print len(lines), lines[-1][0]
 
         # Split this box if its too large to attempt to add to our lines
-        if not acceptor(lb, points_p, line_thresh, d):
+        if not small_enough(lb, points_p, line_thresh, lines,d):
 
             # Split this linebox to make is smaller
             sub_lineboxes = linebox_split(lb,line_thresh)
@@ -418,7 +454,7 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
                             d
                         )
 
-    return acceptor.lines
+    return lines
 
 import sys
 import components
