@@ -1,13 +1,14 @@
 import numpy as np
 import cv2 as cv
-from Queue import PriorityQueue
+import math
+from heapq import heapq
 from copy import deepcopy
 
 
 
-ANGLE_THRESH_DEGREES = 1
+ANGLE_THRESH_DEGREES = .5
 ANGLE_THRESH = ANGLE_THRESH_DEGREES*np.pi/180
-QUALITY_THRESH = 1 - .8**2
+QUALITY_THRESH = 1 - .4**2
 global EPSILON_SQR
 
 
@@ -21,8 +22,12 @@ def get_line_vectors(linebox):
     # Put the r_values in a list of equal length
     r_values = np.append( 
         linebox[1], 
-        linebox[1][0]*(1-np.cos((linebox[0][1]-linebox[0][0])/2))
+        linebox[1][0]*np.cos((linebox[0][1]-linebox[0][0])/2)
     )
+
+    if len(r_values) == 2:
+
+        pass
 
     return line_vectors, r_values
 
@@ -36,16 +41,19 @@ def distance_info(line_vector, r, point, d=0):
     score = abs(line_dist)
     if d:
 
-        desc_dist = np.dot( point-(r-d)*line_vector, line_vector )
+        desc_dist = np.dot( point-(r+d)*line_vector, line_vector )
         # If the descender line is closer than the base, choose this instead
-        if abs(desc_dist) < score:
+        # NOTE: Score is weighted differently to avoid matching multiple lines
+        # to lines of text that lack descenders
+        if abs(desc_dist) < .9*score:
 
             score = abs(desc_dist)
             line_dist = desc_dist
         
     # Return the log likelyhood score and its positional bool
-    return \
-    (max(0,1-(score**2)/EPSILON_SQR), (line_dist > 0)^(line_vector[1] < 0)) 
+    return ( float(max(0,1-(score**2)/EPSILON_SQR)),
+        (line_dist > 0)^(line_vector[1] < 0)
+    )
 
 def is_inside_box(bounds, point):
 # Returns true if a point is inside of a box's bounds
@@ -57,6 +65,9 @@ def is_inside_box(bounds, point):
 def point_quality(line_vectors, r_values, point, d):
 # This function returns the quality score of a linebox on a SINGLE point
 # WARNING 'line_vectors' and 'point' MUST be np.array()
+
+    if r_values[0] > 300 and point[1] > 300:
+        pass
 
     # For each line in the linebox remember score info
     qualities = (
@@ -70,14 +81,15 @@ def point_quality(line_vectors, r_values, point, d):
     )
     
     # Return maximum value (1) if the point is inside the rectangle
-    if is_inside_box( [quality[1] for quality in qualities], point ): return 1
+    if is_inside_box( [qual[1] for qual in qualities], point ): return 1
 
     # Find the maximum score of the point from the bounding lines
-    get_score = lambda info: info[0]
-    score = max(qualities, key=get_score)[0]
+    else:
+        get_score = lambda info: info[0]
+        score = max(qualities, key=get_score)[0]
 
-    # Return the score between [0,1] (Always 1 if the point is inside the box)
-    return score
+        # Return the score between [0,1] (Always 1 if the point is inside the box)
+        return score
 
 def quality(linebox, points, d=0):
 # This function returns a double scoring the quality of a linebox
@@ -86,6 +98,7 @@ def quality(linebox, points, d=0):
 # WARNING:  'points' MUST be an np.array()
 
     # Initialize score to 0
+    i = 0
     score = 0
     matchlist = []
     # Get unit vectors to each line's normal and their distance from the orign
@@ -93,75 +106,164 @@ def quality(linebox, points, d=0):
     # Sum the quality over every point
     for point in points:
     
-        score += point_quality(line_vectors, r_values, point,d)
-        if score != 0: matchlist += [point]
+        this_score = point_quality(line_vectors, r_values, point,d)
+        if this_score != 0:
+            score += this_score
+            matchlist += [point]
 
     return score, matchlist
 
-def is_accurate(linebox, line_thresh):
+def is_subseq(set1, set2):
+# Returns True if one set is a subsequence of the other
 
-    return \
-    abs(linebox[0][0]-linebox[0][1]) < ANGLE_THRESH and \
-    abs(linebox[1][0]-linebox[1][1]) < line_thresh
+    small_set = set1
+    big_set = set2
+    if len(set2) < len(set1):
 
-def no_intersection(linebox, obstacle):
-# The value is True if there is no intersection between any of the 
+        big_set = set1
+        small_set = set2
+
+    limit = len(small_set)
+    count = 0
+    i = 0
+    while count < limit and i < limit:
+        
+        if np.array_equal(small_set[count], big_set[i]): count+=1
+        i+=1
+
+    return count >= .95*limit
+
+class is_accurate:
+# Effects:
+# Returns True if this line is accurate.
+# Also adds accurate lines to the lines list if it makes sense
+
+    def __init__(self, min_angle, max_angle, min_line, max_line, line_thresh):
+        self.min_angle = min_angle
+        self.max_angle = max_angle
+        self.min_line = min_line
+        self.max_angle = max_line
+        self.max_r = int(math.ceil(3*(max_line-min_line)/line_thresh))
+        self.max_theta = int(math.ceil(3*(max_angle-min_angle)/ANGLE_THRESH))
+        # The list of all line-point matches made by this algorithm
+        row = \
+        [ None for x in xrange(self.max_r) ]
+        self.lines = \
+        [row for x in xrange(self.max_theta)]
+
+    def __call__(self, linebox, points, line_thresh, d):
+
+        # This line meets the threshold
+        if abs(linebox[0][0]-linebox[0][1]) < ANGLE_THRESH and \
+        abs(linebox[1][0]-linebox[1][1]) < line_thresh:
+
+            # Calculate final line and its quality
+            theta_avg = np.mean(linebox[0])
+            r_avg = np.mean(linebox[1])
+            theta = int(3*(theta_avg-self.min_angle)/ANGLE_THRESH)
+            r = int(3*(r_avg-self.min_line)/line_thresh)
+            new_quality, new_points = \
+            quality(((theta_avg, theta_avg),(r_avg,r_avg)), points, d)
+
+            # Get any adjacent lines
+            adj_lines = []
+            for adj_theta in xrange(max(0,theta-1),min(self.max_theta,theta+2)):
+                for adj_r in xrange(max(0,r-1),min(self.max_r, r+2)):
+                    if self.lines[adj_theta][adj_r] is not None:
+                        adj_lines += [(adj_theta,adj_r)]
+
+            # If there is a nearby line, just pick the best version
+            if adj_lines:
+                functor = lambda (a,b): self.lines[a][b][0]
+                (max_theta, max_r) = max(adj_lines, key=functor)
+                if new_quality > self.lines[max_theta][max_r][0]:
+                    self.lines[max_theta][max_r] = \
+                    (new_quality,(theta,r),new_points)
+
+            # Otherwise, add this line
+            else: self.lines[theta][r] = (new_quality,(theta_avg,r_avg),new_points)
+
+            return True
+
+        return False
+                    
+#        lb = ((new_line[0],new_line[0]),(new_line[1],new_line[1]))
+#        new_quality, points = quality(lb, points, d)
+#        # This line is a near duplicate of a previous line
+#        for line in lines:
+#            # These lines are too similar to coexist
+#            if (abs(line[1][0] - new_line[0]) < 2*ANGLE_THRESH and \
+#            abs(line[1][1] - new_line[1]) < 2*line_thresh):# or \
+##            is_subseq(points,line[2]):
+#
+#                # The new_line is more accurate.  Replace the old
+#                if line[0] < new_quality: line = (new_quality, new_line, points)
+#                # Stop searching for duplicates
+#                return True
+#    
+#        # This line is not a duplicate
+#        lines += [ (new_quality, new_line, points) ]
+#        return True
+#
+#    return False
+
+def only_intersection(linebox, obstacle):
+# The value is True if there is an intersection between any of the 
 # lines in linebox and the obstacle
 
     line_vectors, r_values = get_line_vectors(linebox)
-    
-    # Are the bottom corners above the top bounds?
-    botleft0 = distance_info(line_vectors[0],r_values[1],obstacle.corners[1])[1]
-    botleft1 = distance_info(line_vectors[1],r_values[1],obstacle.corners[1])[1]
-    botright0 = distance_info(line_vectors[0],r_values[1],obstacle.corners[2])[1]
-    botright1 = distance_info(line_vectors[1],r_values[1],obstacle.corners[2])[1]
 
-    # The obstacle is above all possible lines.  We're done
-    if botleft0 and botleft1 and botright0 and botright1: return True
+    # Only_intersection is true iff 
+    # 1. At least one bottom corner is below all lower bounds
+    # 2. At least one top corner is above all upper bounds
 
-    # Likewise, if any of the bottom corners are above the top bounds, it cannot
-    # be true that all the top corners will be below the bottom bounds.  Don't
-    # bother checking
-    elif botleft0 or botleft1 or botright0 or botright1: return False
+    return (
 
-    # Are the top corners below the bottom bounds?
-    topleft0 = distance_info(line_vectors[0],r_values[0],obstacle.corners[0])[1]
-    topleft1 = distance_info(line_vectors[1],r_values[0],obstacle.corners[0])[1]
-    topleft2 = distance_info(line_vectors[2],r_values[2],obstacle.corners[0])[1]
-    topright0 = distance_info(line_vectors[0],r_values[0],obstacle.corners[3])[1]
-    topright1 = distance_info(line_vectors[1],r_values[0],obstacle.corners[3])[1]
-    topright2 = distance_info(line_vectors[2],r_values[2],obstacle.corners[3])[1]
+        not (
+        distance_info(line_vectors[0],r_values[0],obstacle.corners[0])[1] or
+        distance_info(line_vectors[1],r_values[0],obstacle.corners[0])[1] or
+        distance_info(line_vectors[2],r_values[2],obstacle.corners[0])[1]
+        ) or not (
+        distance_info(line_vectors[0],r_values[0],obstacle.corners[3])[1] or
+        distance_info(line_vectors[1],r_values[0],obstacle.corners[3])[1] or
+        distance_info(line_vectors[2],r_values[2],obstacle.corners[3])[1] )
 
-    # If the answer is yes.  The obstacle is below the line.  We're done.
-    return \
-    not (topleft0 or topleft1 or topleft2 or topright0 or topright1 or topright2)
+    ) and (
 
-def only_intersection(linebox, obstacle):
-# The value is True if every possible value of the linebox interesects
-# with the obstacle
+        (distance_info(line_vectors[0],r_values[1],obstacle.corners[1])[1] and
+        distance_info(line_vectors[1],r_values[1],obstacle.corners[1])[1]
+        ) or (
+        distance_info(line_vectors[0],r_values[1],obstacle.corners[2])[1] and
+        distance_info(line_vectors[1],r_values[1],obstacle.corners[2])[1] )
+
+    )
+
+def no_intersection(linebox, obstacle):
+# The value is True if every possible value of the linebox misses the obstacle
+#
+# Returns True if c0 and c3 are above all upperbounds
+# OR
+# Returns True if c1 and c2 are below all lower bounds
     
     line_vectors, r_values = get_line_vectors(linebox)
 
-    # Are the top corners above the top bounds?
-    if \
-    distance_info(line_vectors[0],r_values[1],obstacle.corners[0])[1] or \
-    distance_info(line_vectors[1],r_values[1],obstacle.corners[0])[1] or \
-    distance_info(line_vectors[0],r_values[1],obstacle.corners[3])[1] or \
-    distance_info(line_vectors[1],r_values[1],obstacle.corners[3])[1]:
-        return False
+    return ( 
 
-    # Are the bottom corners below the bottom bounds?
-    if not (
-    distance_info(line_vectors[0],r_values[0],obstacle.corners[1])[1] or \
-    distance_info(line_vectors[1],r_values[0],obstacle.corners[1])[1] or \
-    distance_info(line_vectors[2],r_values[2],obstacle.corners[1])[1] or \
-    distance_info(line_vectors[0],r_values[0],obstacle.corners[2])[1] or \
-    distance_info(line_vectors[1],r_values[0],obstacle.corners[2])[1] or \
-    distance_info(line_vectors[2],r_values[2],obstacle.corners[2])[1]):
-        return False
+        distance_info(line_vectors[0],r_values[1],obstacle.corners[0])[1] and 
+        distance_info(line_vectors[1],r_values[1],obstacle.corners[0])[1] and 
+        distance_info(line_vectors[0],r_values[1],obstacle.corners[3])[1] and 
+        distance_info(line_vectors[1],r_values[1],obstacle.corners[3])[1]
 
-    # Otherwise, the rectangle is engulfed by this obstacle
-    return True
+    ) or not (
+    
+        distance_info(line_vectors[0],r_values[0],obstacle.corners[1])[1] or
+        distance_info(line_vectors[1],r_values[0],obstacle.corners[1])[1] or
+        distance_info(line_vectors[2],r_values[2],obstacle.corners[1])[1] or
+        distance_info(line_vectors[0],r_values[0],obstacle.corners[2])[1] or
+        distance_info(line_vectors[1],r_values[0],obstacle.corners[2])[1] or
+        distance_info(line_vectors[2],r_values[2],obstacle.corners[2])[1]
+
+    )
 
 def linebox_split(linebox, line_thresh):
 
@@ -194,6 +296,11 @@ def enqueue_lb( queue, sub_linebox, points, obs, d ):
     # Only look at lines that have the potential to be quality
     sub_quality, sub_points = quality(sub_linebox, points, d)
     if sub_points and sub_quality/len(sub_points) > QUALITY_THRESH:
+
+        assert type(sub_quality) != type(np.array([]))
+        assert type(sub_linebox) != type(np.array([]))
+        assert type(sub_points) != type(np.array([]))
+        assert type(obs) != type(np.array([]))
         queue.put((
             -sub_quality,
             sub_linebox,
@@ -201,49 +308,56 @@ def enqueue_lb( queue, sub_linebox, points, obs, d ):
             obs
         ))
 
+def error_check(pts):
+
+    if max( [p[1] for p in pts] ) < 300: 
+    
+        pass
+
 def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
 # Finds the optimal line via branch and bound methods
 
     # Set the distance threshold
     global EPSILON_SQR
-    EPSILON_SQR = eps**2
-    line_thresh = eps/8
+    EPSILON_SQR = eps**2/4
+    line_thresh = .25
+    min_angle = np.pi/2-.25
+    max_angle = np.pi/2+.25
+    min_line = -img_w/np.sqrt(2)
+    max_line = img_w/np.sqrt(2)+img_h/np.sqrt(2)
 
-    # The list of all line-point matches made by this algorithm
-    lines = []
-
+    # Functor for terminating splits and adding accepted lines
+    acceptor = is_accurate( min_angle, max_angle, min_line, max_line, line_thresh)
+    
     # The initial bounds of the linebox
     # (All possible lines within 45 degrees of being horizontal)
     linebox = (
     
-        [np.pi/4, 3*np.pi/4],
-        [-img_w/np.sqrt(2), img_w/np.sqrt(2)+img_h/np.sqrt(2)]
+        np.array([min_angle, max_angle]),
+        np.array([min_line, max_line])
 
     )
 
     # Keep track of things in a priority queue
     queue = PriorityQueue()
     queue.put( (-len(points), linebox, points, obstacles) )
+    x = -1
     while not queue.empty():
 
+        x+=1
+        if x == 2891:
+            pass
         # Get the linebox with the highest upperbound on quality
         ub_quality, lb, points_p, obs_p = queue.get()
         ub_quality *= -1
-        print ub_quality, len(points_p)
 
-        # This box is small enough to convert into a line
-        if is_accurate(lb, line_thresh):
-
-            #print points_p
-            lines += [ ((np.mean(lb[0]),np.mean(lb[1])), points_p) ]
-
-        else:
+        # Split this box if its too large to attempt to add to our lines
+        if not acceptor(lb, points_p, line_thresh, d):
 
             # Split this linebox to make is smaller
             sub_lineboxes = linebox_split(lb,line_thresh)
             # Get rid of obstacles that can't be encountered anymore
-            pruned_obs = [ obs for obs in obs_p if not no_intersection(lb, obs) ]
-            
+            pruned_obs = [ obs for obs in obs_p if not no_intersection(lb, obs)]
             # Split the lineboxes along blocking obstacles
             for sub_linebox in sub_lineboxes:
 
@@ -304,10 +418,31 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
                             d
                         )
 
-    return lines
+    return acceptor.lines
 
+import sys
+import components
+from preprocess import preprocess 
+from textblock import TextBlock
+from orient import fixSkew
 if __name__ == '__main__':
+    
+    global EPSILON_SQR
+    EPSILON_SQR = 10
 
     # Calculate the largest possible linebox
-    linebox = [ [0, PAGE_HEIGHT], [np.pi/4, 3*np.pi/4] ]
-    points  = get_points(image)
+    # image = cv.imread(sys.argv[1])
+    # img = preprocess(image)
+    # img = fixSkew(img)
+
+    linebox = (
+
+        [np.pi/2, np.pi/2],
+        [np.sqrt(10), 2*np.sqrt(10)]
+
+    )
+
+    obs = TextBlock( (2,9),(3,11) )
+
+    print only_intersection(linebox, obs)
+    print no_intersection(linebox, obs)
