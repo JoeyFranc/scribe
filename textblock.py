@@ -32,21 +32,11 @@ class TextBlock(object):
     def init_values(self, tl, bl, br, tr):
     # Inits all values of a TextBlock object
 
-        # Text
-        self.text = ''
-
         # Bounds
         self.left  = (tl[0]+bl[0])/2
         self.right = (tr[0]+br[0])/2
         self.top   = (tl[1]+tr[1])/2
         self.bot   = (bl[1]+br[1])/2
-
-        # Style information
-        self.line = None
-        self.indent = None
-        self.heading = None
-        self.list = None
-        self.allign = LEFT
 
         # Actual corners KEPT FOR TESTING PURPOSES, I LIKE THE RECTANGLE
         # REPRESENTATION BUT DO WHAT YOU WILL
@@ -57,7 +47,27 @@ class TextBlock(object):
     #       of the TextBlock
     #
     # By default, text blocks are unindented, left allgined, paragraph blocks
-        
+
+        # Text
+        self.text = ''
+
+        # Bounds
+        self.left  = 0
+        self.right = 0
+        self.top   = 0
+        self.bot   = 0
+
+        # Style information
+        self.line = None
+        self.indent = None
+        self.heading = None
+        self.list = None
+        self.allign = LEFT
+
+        # Actual corners KEPT FOR TESTING PURPOSES, I LIKE THE RECTANGLE
+        # REPRESENTATION BUT DO WHAT YOU WILL
+        self.corners = []
+
         if len(args) == 1:
             corners = args[0]
             tl = tuple(corners[0])

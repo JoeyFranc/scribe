@@ -36,9 +36,9 @@ def seperated(lhs,rhs, obstacles):
 
     return False
 
-def cmp_geometric( lhs, rhs ):
+class cmp_geometric:
 
-    def __init__(self, obstacles): self.obs = osbtacles
+    def __init__(self, obstacles): self.obs = obstacles
 
     def __call__(self, lhs,rhs):
 
@@ -169,7 +169,6 @@ def normalize_headings(text_blocks):
         # Remember how many blocks had this heading
         headings += [k]
         count += k
-        print count
         # Mark new most popular heading level
         if headings[paragraph] < k: paragraph = heading
         # Iterate to next heading
@@ -185,8 +184,7 @@ def normalize_headings(text_blocks):
 
 def sort_geometric_order( text_blocks, obstacles ):
     
-    text_blocks = sorted( text_blocks, cmp=cmp_geometric(obstacles) )
-    return text_blocks
+    return sorted( text_blocks, cmp=cmp_geometric(obstacles) )
 
 def format( text_blocks, eps, c_width, obstacles ):
 
@@ -219,6 +217,28 @@ if __name__ == '__main__':
     text_blocks = \
     [ TextBlock([[int(c) for c in p.split(',')] for p in line.split(';')]) for line in f ]
     # Format what's in the .csv
-    format( text_blocks )
+    img = cv2.imread('mytests/josh1.jpg')
+    height, width, c = img.shape
+    format( text_blocks, height, width )
 
-    print text_blocks
+    # Draw the rectangles
+    scale = max( height/1080, width/1920 )
+    i = 1
+    for block in text_blocks:
+
+        tl = [block.indent*width/80, block.corners[0][1] ]
+        br = block.corners[2]
+        tl[0] *= scale
+        tl[1] *= scale
+        br[0] *= scale
+        br[1] *= scale
+        tr = block.corners[3]
+        tr[0] *= scale
+        tr[1] *= scale
+        color = (255,0,255)
+        if block.heading == 1: color = (255,255,255)
+        cv2.rectangle(img, tuple(tl), tuple(br), color, 2)
+        cv2.putText(img, str(i), tuple(tr), cv2.FONT_HERSHEY_SIMPLEX, 3, (0,0,0),4)
+        i+=1
+
+    cv2.imwrite('experiment.jpg', img)
