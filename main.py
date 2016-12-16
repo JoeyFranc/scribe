@@ -17,9 +17,10 @@ import tbformat
 def get_line_params(characters):
 # Returns approximate x_height and descender line distance of characters
 
-    x_height = np.median( [(h) for (x,y,w,h) in characters] )
+    x_height = np.median( [ h for (x,y,w,h) in characters] )
     d_line   = x_height/2
-    return (x_height, d_line)
+    c_width  = np.median( [ w for (x,y,w,h) in characters ] )
+    return (x_height, d_line, c_width)
 
 pages = []
 for file_name in sys.argv[1:]:
@@ -35,8 +36,9 @@ for file_name in sys.argv[1:]:
     white_spaces = recWhiteSpace(Obstacle(0,0,img_w,img_h), obstacles)
     white_spaces = [TextBlock((obs.x,obs.y), (obs.x+obs.w,obs.y+obs.h))
                     for obs in white_spaces]
+    print len(white_spaces), 'obstacles'
     characters = get_components(img)
-    x_height, d_line = get_line_params(characters)
+    x_height, d_line, c_width = get_line_params(characters)
     char_points = [ (np.array([r.x+r.w/2, r.y+r.h]), r) for r in characters ]
     print len(char_points), 'points'
 #    for (x,y,w,h) in characters: cv.rectangle(img, (x,y), (x+w,y+h), (0,0,255),2)
@@ -59,7 +61,7 @@ for file_name in sys.argv[1:]:
     cv.imwrite('out_'+file_name, img)
 
     # Format recovery
-    tbformat.format(text_lines)
+    text_blocks = tbformat.format(text_blocks, x_height, c_width)
 
     # Optical Character Recognition
     # Make a Latex file

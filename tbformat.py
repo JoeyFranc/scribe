@@ -118,7 +118,7 @@ def group_values( text_blocks, threshold, get_value, add_value, key_functor ):
     if len( text_blocks ) < 2: raise BaseException('REQUIRES 2+ textblocks')
 
     # Start by sorting the text_blocks from smallest left bound to largest
-    sorted( text_blocks, key=key_functor )
+    text_blocks = sorted( text_blocks, key=key_functor )
 
     lvl = 1 #Current group level
     grouped = 0 #Number of grouped blocks
@@ -150,57 +150,62 @@ def group_values( text_blocks, threshold, get_value, add_value, key_functor ):
         grouped += group_size
         lvl += 1
 
-
-
 def normalize_headings(text_blocks):
 # REQ:  text_blocks are sorted by heading
 # EFF:  Changes the most common block and smaller blocks to paragraphs
 
     heading = 1
-    headings = []
-    paragraph = 0
+    headings = [0]
+    paragraph = 1
     while sum(headings) < len(text_blocks):
         
         # Count text_blocks with this heading
-        while text_blocks[headings[-1]+i] == heading: i+=1
+        k=0
+        while text_blocks[sum(headings)+k] == heading: k+=1
         # Remember how many blocks had this heading
-        headings += [i]
+        headings += [k]
         # Mark new most popular heading level
-        if headings[paragraph] < headings[-1]: paragraph = heading-1
+        if headings[paragraph] < k: paragraph = heading
         # Iterate to next heading
         heading += 1
+        print 'stuck'
 
-    # Change all smaller headings to paragraphs
-    new_heading = paragraph
-    heading_lines = sum(headings[:paragraph])
-    for block in text_blocks[heading_lines:]: block.heading = None
+    # Change the most common heading group and all groups smaller than
+    # the most common group into paragraphs
+    heading_k = sum(headings[:paragraph])
+    for h in xrange(1,paragraph):
+        text_block[sum(headings[:h]):sum(headings[:h+1])].heading = paragraph - h
+    # Mark all paragraphs as block.heading = None
+    for block in text_blocks[heading_k:]: block.heading = None
 
 def sort_geometric_order( text_blocks, obstacles ):
     
     functor = cmp_geometric(obstacles)
     sort( text_blocks, cmp=functor )
 
-def format( text_blocks, img_height, img_width ):
+def format( text_blocks, eps, c_width ):
 
-    # TODO: More eloquent way of calculating Threshhold values
-    THRESH_H = img_width / 20
-    THRESH_V = img_height / 80
+    # TODO: More eloquent way of calculating THRESH_H
+    THRESH_H = c_width/2
+    THRESH_V = eps/2
 
     # Get indent values
     key_functor = lambda block: get_indent_value(block)
+    text_blocks = \
     group_values( text_blocks,THRESH_H,key_functor,add_indent_value,key_functor)
     # Get heading values
     key_functor = lambda block: -get_heading_value(block)
-    group_values(text_blocks,THRESH_V,get_heading_value,add_heading_value,key_functor)
-    # Get line values
-    key_functor = lambda block: (block.top+block.bottom)/2
-    group_values(text_blocks,THRESH_V,key_functor,add_line_value,key_functor)
-    # Normalize heading values (most common heading is 0)
+    text_blocks = \
+    group_values(text_blocks,1.5*THRESH_V,get_heading_value,add_heading_value,key_functor)
+    # Normalize heading values (most common heading is None, largest is 1)
     normalize_headings(text_blocks)
+    # Get line values
+    key_functor = lambda block: (block.top+block.bot)/2
+    text_blocks = \
+    group_values(text_blocks,THRESH_V,key_functor,add_line_value,key_functor)
     # Sort text lines into geometric order using obstacles
-    sort_geometric_order(text_blocks, obstacles)
-
-
+    text_blocks = sort_geometric_order(text_blocks, obstacles)
+    return text_blocks
 
 if __name__ == '__main__':
 
