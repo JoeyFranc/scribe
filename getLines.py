@@ -9,7 +9,7 @@ from copy import deepcopy
 ANGLE_THRESH_DEGREES = .5
 ANGLE_THRESH = ANGLE_THRESH_DEGREES*np.pi/180
 QUALITY_THRESH = 1 - .2**2
-COARSE = .1
+COARSE = .2
 
 
 def get_line_vectors(linebox):
@@ -40,9 +40,9 @@ def distance_info(line_vector, r, point, d=0):
         # If the descender line is closer than the base, choose this instead
         # NOTE: Score is weighted differently to avoid matching multiple lines
         # to lines of text that lack descenders
-        if 1.1*abs(desc_dist) < score:
+        if abs(desc_dist) < score:
 
-            score = 1.05*abs(desc_dist)
+            score = abs(desc_dist)
             line_dist = desc_dist
         
     # Return the log likelyhood score and its positional bool

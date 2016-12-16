@@ -3,18 +3,19 @@ import getLines
 
 def seperate_sets(lines):
 
+    points = 0
     processed_lines = []
     # Remove points
     while lines:
-        print len(lines)
 
         # If lines are still good enough
         best_line = max(lines, key=lambda x: x[0])
-        if best_line[0] > getLines.QUALITY_THRESH:
+        if best_line[0] > 3:
 
             # Get rid of the best line, and remove all of its points from
             # every other line
             processed_lines += [best_line]
+            points += len(best_line[2])
             new_lines = []
             lines.remove(best_line)
             for line in lines:
@@ -24,7 +25,7 @@ def seperate_sets(lines):
                 for point in line[2]:
                     # Assume its unique until a match is found
                     is_unique = True
-                    for processed_point in best_line:
+                    for processed_point in best_line[2]:
 
                         if np.array_equal( point, processed_point):
                             is_unique = False
