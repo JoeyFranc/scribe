@@ -61,7 +61,7 @@ for file_name in sys.argv[1:]:
     cv.imwrite('out_'+file_name, img)
 
     # Format recovery
-    text_blocks = tbformat.format(text_blocks, x_height, c_width)
+    text_blocks = tbformat.format(text_blocks, x_height/2, c_width, obstacles)
 
     # Optical Character Recognition
     # Make a Latex file

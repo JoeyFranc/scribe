@@ -150,6 +150,8 @@ def group_values( text_blocks, threshold, get_value, add_value, key_functor ):
         grouped += group_size
         lvl += 1
 
+    return text_blocks
+
 def normalize_headings(text_blocks):
 # REQ:  text_blocks are sorted by heading
 # EFF:  Changes the most common block and smaller blocks to paragraphs
@@ -157,18 +159,21 @@ def normalize_headings(text_blocks):
     heading = 1
     headings = [0]
     paragraph = 1
-    while sum(headings) < len(text_blocks):
+    count = 0 
+    while count < len(text_blocks):
         
         # Count text_blocks with this heading
         k=0
-        while text_blocks[sum(headings)+k] == heading: k+=1
+        while count+k < len(text_blocks) and \
+        text_blocks[count+k].heading == heading: k+=1
         # Remember how many blocks had this heading
         headings += [k]
+        count += k
+        print count
         # Mark new most popular heading level
         if headings[paragraph] < k: paragraph = heading
         # Iterate to next heading
         heading += 1
-        print 'stuck'
 
     # Change the most common heading group and all groups smaller than
     # the most common group into paragraphs
@@ -180,10 +185,10 @@ def normalize_headings(text_blocks):
 
 def sort_geometric_order( text_blocks, obstacles ):
     
-    functor = cmp_geometric(obstacles)
-    sort( text_blocks, cmp=functor )
+    text_blocks = sorted( text_blocks, cmp=cmp_geometric(obstacles) )
+    return text_blocks
 
-def format( text_blocks, eps, c_width ):
+def format( text_blocks, eps, c_width, obstacles ):
 
     # TODO: More eloquent way of calculating THRESH_H
     THRESH_H = c_width/2
