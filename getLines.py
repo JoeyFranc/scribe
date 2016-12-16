@@ -6,11 +6,11 @@ from copy import deepcopy
 
 
 
-ANGLE_THRESH_DEGREES = .5
+ANGLE_THRESH_DEGREES = 1
 ANGLE_THRESH = ANGLE_THRESH_DEGREES*np.pi/180
 QUALITY_THRESH = 1 - .2**2
-COARSE = .2
-
+ANGLE_COARSE = .1
+LINE_COARSE = .5
 
 def get_line_vectors(linebox):
 
@@ -101,7 +101,7 @@ def quality(linebox, points, d=0):
     # Sum the quality over every point
     for point in points:
     
-        this_score = point_quality(line_vectors, r_values, point,d)
+        this_score = point_quality(line_vectors, r_values, point[0], d)
         if this_score != 0:
             score += this_score
             matchlist += [point]
@@ -139,8 +139,8 @@ class is_accurate:
         self.max_angle = max_angle
         self.min_line = min_line
         self.max_angle = max_line
-        self.max_r = int(COARSE*math.ceil((max_line-min_line)/line_thresh))+1
-        self.max_theta = int(2*COARSE*math.ceil((max_angle-min_angle)/ANGLE_THRESH))+1
+        self.max_r = int(LINE_COARSE*math.ceil((max_line-min_line)/line_thresh))+1
+        self.max_theta = int(ANGLE_COARSE*math.ceil((max_angle-min_angle)/ANGLE_THRESH))+1
         # The list of all line-point matches made by this algorithm
         self.lines = \
         [ [None for x in xrange(self.max_r)]
@@ -157,8 +157,8 @@ class is_accurate:
             r_avg = np.mean(linebox[1])
             new_quality, _ = \
             quality(((theta_avg, theta_avg),(r_avg,r_avg)), points, d)
-            theta = int(2*COARSE*(theta_avg-self.min_angle)/ANGLE_THRESH)
-            r = int(COARSE*(r_avg-self.min_line)/line_thresh)
+            theta = int(ANGLE_COARSE*(theta_avg-self.min_angle)/ANGLE_THRESH)
+            r = int(LINE_COARSE*(r_avg-self.min_line)/line_thresh)
 
 #            # Get any adjacent lines
 #            adj_lines = []
@@ -181,7 +181,6 @@ class is_accurate:
             new_quality < len(points)*QUALITY_THRESH):
             
                 self.lines[theta][r] = (new_quality,(theta_avg,r_avg),points)
-                print self.lines[theta][r][0]
 
             return True
 
@@ -196,15 +195,6 @@ class is_accurate:
                 if line: lines += [line]
 
         return lines
-
-def has_intersection(set1, set2):
-# True if set1 and set2 have an intersection
-
-    for point1 in set1:
-        for point2 in set2:
-            if np.array_equal(point1,point2): return True
-
-    return False
                     
 def small_enough(linebox, points, line_thresh, lines, d):
 
@@ -366,8 +356,8 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
     global EPSILON_SQR
     global QUALITY_MIN
     QUALITY_MIN = QUALITY_THRESH * int(np.sqrt(len(points)))/6
-    EPSILON_SQR = eps**2/4
-    line_thresh = eps*COARSE
+    EPSILON_SQR = eps**2/8
+    line_thresh = eps*LINE_COARSE
     min_angle = np.pi/2-.2
     max_angle = np.pi/2+.2
     min_line = -img_w/np.sqrt(2)
@@ -394,8 +384,6 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
         # Get the linebox with the highest upperbound on quality
         ub_quality, lb, points_p, obs_p = queue.get()
         ub_quality *= -1
-#        if lines:
-#            print len(lines), lines[-1][0]
 
         # Split this box if its too large to attempt to add to our lines
         if not acceptor(lb, points_p, line_thresh, d):
@@ -409,59 +397,61 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
 
                 enqueue_lb(queue, sub_linebox, points_p, pruned_obs, d)
 
-#                # Get index for all obstacles that completely block the path
-#                blocking = [ i for i in xrange(len(pruned_obs))
-#                            if only_intersection(sub_linebox, pruned_obs[i]) ]
-#                # Greedilly start splitting sub_linebox from left to right
-#                sort_functor = lambda i: pruned_obs[i].left
-#                blocking = sorted( blocking, key=sort_functor )
-#                # If there are no blocking obstacles, enqueue normally
-#                if not blocking:
-#
-#                    enqueue_lb(queue, sub_linebox, points_p, pruned_obs, d)
-#
-#                # Points need to be split along this lb/obstacle combo
-#                else:
-#
-#                    relevant_obs = [ pruned_obs[i]
-#                                    for i in xrange(len(pruned_obs))
-#                                    if i not in blocking ]
-#                    # Start greedily splitting points along the leftmost obs
-#                    right = points_p
-#                    for i in blocking:
-#
-#                        # Split points into a left and right subgroup divided
-#                        # by the obstacle
-#                        left = []
-#                        j = 0
-#                        while j < len(right):
-#
-#                            if right[j][0] < pruned_obs[i].left:
-#                                
-#                                left += [right[j]]
-#                                right = right[:j] + right[j+1:]
-#
-#                            else: j+=1
-#
-#                        # Add these new split lineboxes to the queue
-#                        if left:
-#                            enqueue_lb(
-#                                queue,
-#                                sub_linebox,
-#                                left,
-#                                relevant_obs,
-#                                d
-#                            )
-#
-#                    # Remember the last remaining right linebox
-#                    if right:
-#                        enqueue_lb(
-#                            queue,
-#                            sub_linebox,
-#                            right,
-#                            relevant_obs,
-#                            d
-#                        )
+                # Get index for all obstacles that completely block the path
+                blocking = [ i for i in xrange(len(pruned_obs))
+                            if only_intersection(sub_linebox, pruned_obs[i]) ]
+                # Greedilly start splitting sub_linebox from left to right
+                sort_functor = lambda i: pruned_obs[i].left
+                blocking = sorted( blocking, key=sort_functor )
+                # If there are no blocking obstacles, enqueue normally
+                if not blocking:
+
+                    enqueue_lb(queue, sub_linebox, points_p, pruned_obs, d)
+
+                # Points need to be split along this lb/obstacle combo
+                else:
+
+                    relevant_obs = [ pruned_obs[i]
+                                    for i in xrange(len(pruned_obs))
+                                    if i not in blocking ]
+                    # Start greedily splitting points along the leftmost obs
+                    right = points_p
+                    for i in blocking:
+
+                        # Split points into a left and right subgroup divided
+                        # by the obstacle
+                        left = []
+                        j = 0
+                        while j < len(right):
+
+                            # This point is sandwiched between the last
+                            # obstacle and the current one
+                            if right[j][0][0] < pruned_obs[i].left:
+                                
+                                left += [right[j]]
+                                right = right[:j] + right[j+1:]
+
+                            else: j+=1
+
+                        # Add these new split lineboxes to the queue
+                        if left:
+                            enqueue_lb(
+                                queue,
+                                sub_linebox,
+                                left,
+                                relevant_obs,
+                                d
+                            )
+
+                    # Remember the last remaining right linebox
+                    if right:
+                        enqueue_lb(
+                            queue,
+                            sub_linebox,
+                            right,
+                            relevant_obs,
+                            d
+                        )
 
     return acceptor.output()
 

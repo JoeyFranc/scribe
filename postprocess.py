@@ -1,13 +1,14 @@
 import numpy as np
 import getLines
+from textblock import TextBlock
 
 def seperate_sets(lines):
+# Fixes lines so that each point belongs to only 1 line
 
-    points = 0
     processed_lines = []
     # Remove points
     while lines:
-
+        
         # If lines are still good enough
         best_line = max(lines, key=lambda x: x[0])
         if best_line[0] > 3:
@@ -15,7 +16,6 @@ def seperate_sets(lines):
             # Get rid of the best line, and remove all of its points from
             # every other line
             processed_lines += [best_line]
-            points += len(best_line[2])
             new_lines = []
             lines.remove(best_line)
             for line in lines:
@@ -27,7 +27,7 @@ def seperate_sets(lines):
                     is_unique = True
                     for processed_point in best_line[2]:
 
-                        if np.array_equal( point, processed_point):
+                        if np.array_equal( point[0], processed_point[0]):
                             is_unique = False
                             break
 
@@ -49,5 +49,35 @@ def seperate_sets(lines):
 
     return processed_lines
 
-def post_process(text_lines):
-    pass
+def adopt_orphaned_chars(lines, points):
+# Add all points that don't belong to a line to the nearest line
+
+    line_points = [ line[2] for line in lines ]
+    points = [ point for point in points if point not in line_points ]
+
+def merge_lines(lines, eps, d):
+# Output Text_blocks from lines
+
+    text_blocks = []
+    for line in lines:
+
+        # Create a bounding rectangle
+        rects = [rect[1] for rect in line[2]]
+        x = min( rects, key=lambda point: point.x ).x
+        w = max( rects, key=lambda point: point.x+point.w ).x - x
+        y = int(np.median([point.y for point in rects])-eps)
+        h = int(np.median([point.y+point.h for point in rects])+d) - y
+#        y = min( rects, key=lambda point: point.y ).y
+#        h = max( rects, key=lambda point: point.y+point.h ).x - y
+
+        # Add this rectangle
+        text_blocks += [TextBlock((x,y),(x+w,y+h))]
+
+    return text_blocks
+
+def post_process(text_lines, points, eps, d):
+
+    text_lines = seperate_sets(text_lines)
+#    adopt_orphaned_chars(lines,points)
+    text_blocks = merge_lines(text_lines, eps, d)
+    return text_lines, text_blocks
