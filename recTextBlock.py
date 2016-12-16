@@ -2,10 +2,8 @@ import cv2
 import numpy as np
 import block
 
-def recTextBlocks(img_name):
+def recTextBlocks(im_blur):
     # implement RLSA
-    im = cv2.imread(img_name, 0)
-    im_blur = cv2.GaussianBlur(im, (5,5), 0)
     thre_val, im_thre = cv2.threshold(im_blur, 0, 255, cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
 
     # apply RLSA on binary images

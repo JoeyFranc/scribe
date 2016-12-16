@@ -4,6 +4,16 @@ from preprocess import preprocess
 
 
 
+class CharRect(tuple):
+
+    def __init__(self, (x,y,w,h)):
+
+        tuple.__init__(self,x,y,w,h)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+
 def extends((lx,ly,lw,lh), (rx,ry,rw,rh)):
 # Returns true if left rect intersects the right rect, but
 # the right rect is not a subset of the left
@@ -69,7 +79,7 @@ def get_components(img):
     #            final += [merge(reject, rect)]
     #            rects.remove(rect)
 
-    return rects
+    return [CharRect(r) for r in rects]
 
 
 import sys

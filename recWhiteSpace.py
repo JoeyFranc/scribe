@@ -80,8 +80,9 @@ def recWhiteSpace(bound, rectangles):
 
     return white_spaces
 
+import sys
 if __name__ == "__main__":
-    img_name = "./white.png"
+    img_name = sys.argv[1]
     im = cv2.imread(img_name, 0)
     h,w = im.shape
     obstacles = recTextBlocks(img_name)

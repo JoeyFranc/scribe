@@ -11,6 +11,10 @@ comparing the two
 
 
 
+import cv2 as cv
+
+
+
 # Constant allignment enum
 LEFT   = 0
 CENTER = 1
@@ -118,3 +122,7 @@ class TextBlock(object):
     
         return self.left <= point[0] and point[0] <= self.right and \
                self.top  <= point[1] and point[1] <= self.bot
+
+    def draw(self, img):
+
+        cv.rectangle(img, self.corners[0], self.corners[2], (0,0,255), 2)
