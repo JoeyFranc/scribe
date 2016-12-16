@@ -8,9 +8,8 @@ from copy import deepcopy
 
 ANGLE_THRESH_DEGREES = .5
 ANGLE_THRESH = ANGLE_THRESH_DEGREES*np.pi/180
-QUALITY_THRESH = 1 - .3**2
-global EPSILON_SQR
-
+QUALITY_THRESH = 1 - .2**2
+COARSE = .1
 
 
 def get_line_vectors(linebox):
@@ -24,10 +23,6 @@ def get_line_vectors(linebox):
         linebox[1], 
         linebox[1][0]*np.cos((linebox[0][1]-linebox[0][0])/2)
     )
-
-    if len(r_values) == 2:
-
-        pass
 
     return line_vectors, r_values
 
@@ -45,9 +40,9 @@ def distance_info(line_vector, r, point, d=0):
         # If the descender line is closer than the base, choose this instead
         # NOTE: Score is weighted differently to avoid matching multiple lines
         # to lines of text that lack descenders
-        if abs(desc_dist) < .9*score:
+        if 1.1*abs(desc_dist) < score:
 
-            score = abs(desc_dist)
+            score = 1.05*abs(desc_dist)
             line_dist = desc_dist
         
     # Return the log likelyhood score and its positional bool
@@ -139,17 +134,17 @@ class is_accurate:
 # Also adds accurate lines to the lines list if it makes sense
 
     def __init__(self, min_angle, max_angle, min_line, max_line, line_thresh):
+        self.line_size = 0
         self.min_angle = min_angle
         self.max_angle = max_angle
         self.min_line = min_line
         self.max_angle = max_line
-        self.max_r = int(math.ceil(3*(max_line-min_line)/line_thresh))
-        self.max_theta = int(math.ceil(3*(max_angle-min_angle)/ANGLE_THRESH))
+        self.max_r = int(COARSE*math.ceil((max_line-min_line)/line_thresh))+1
+        self.max_theta = int(2*COARSE*math.ceil((max_angle-min_angle)/ANGLE_THRESH))+1
         # The list of all line-point matches made by this algorithm
-        row = \
-        [ None for x in xrange(self.max_r) ]
         self.lines = \
-        [row for x in xrange(self.max_theta)]
+        [ [None for x in xrange(self.max_r)]
+        for x in xrange(self.max_theta) ]
 
     def __call__(self, linebox, points, line_thresh, d):
 
@@ -160,28 +155,33 @@ class is_accurate:
             # Calculate final line and its quality
             theta_avg = np.mean(linebox[0])
             r_avg = np.mean(linebox[1])
-            new_quality, new_points = \
+            new_quality, _ = \
             quality(((theta_avg, theta_avg),(r_avg,r_avg)), points, d)
-            theta = int(3*(theta_avg-self.min_angle)/ANGLE_THRESH)
-            r = int(3*(r_avg-self.min_line)/line_thresh)
+            theta = int(2*COARSE*(theta_avg-self.min_angle)/ANGLE_THRESH)
+            r = int(COARSE*(r_avg-self.min_line)/line_thresh)
 
-            # Get any adjacent lines
-            adj_lines = []
-            for adj_theta in xrange(max(0,theta-1),min(self.max_theta,theta+2)):
-                for adj_r in xrange(max(0,r-1),min(self.max_r, r+2)):
-                    if self.lines[adj_theta][adj_r] is not None:
-                        adj_lines += [(adj_theta,adj_r)]
+#            # Get any adjacent lines
+#            adj_lines = []
+#            for adj_theta in xrange(max(0,theta-1),min(self.max_theta,theta+2)):
+#                for adj_r in xrange(max(0,r-1),min(self.max_r, r+2)):
+#                    if self.lines[adj_theta][adj_r] is not None:
+#                        adj_lines += [(adj_theta,adj_r)]
+#
+#            # If there is a nearby line, just pick the best version
+#            if adj_lines:
+#                functor = lambda (a,b): self.lines[a][b][0]
+#                (max_theta, max_r) = max(adj_lines, key=functor)
+#                if new_quality > self.lines[max_theta][max_r][0]:
+#                    self.lines[max_theta][max_r] = \
+#                    (new_quality,(theta,r),new_points)
 
-            # If there is a nearby line, just pick the best version
-            if adj_lines:
-                functor = lambda (a,b): self.lines[a][b][0]
-                (max_theta, max_r) = max(adj_lines, key=functor)
-                if new_quality > self.lines[max_theta][max_r][0]:
-                    self.lines[max_theta][max_r] = \
-                    (new_quality,(theta,r),new_points)
-
-            # Otherwise, add this line
-            else: self.lines[theta][r] = (new_quality,(theta_avg,r_avg),new_points)
+            # Don't add this line if a better line is in the bin
+            if not (self.lines[theta][r] and
+            self.lines[theta][r][0] >= new_quality and
+            new_quality < len(points)*QUALITY_THRESH):
+            
+                self.lines[theta][r] = (new_quality,(theta_avg,r_avg),points)
+                print self.lines[theta][r][0]
 
             return True
 
@@ -193,7 +193,7 @@ class is_accurate:
         lines = []
         for row in self.lines:
             for line in row:
-                if line is not None: lines += [line]
+                if line: lines += [line]
 
         return lines
 
@@ -205,10 +205,9 @@ def has_intersection(set1, set2):
             if np.array_equal(point1,point2): return True
 
     return False
-
-
                     
 def small_enough(linebox, points, line_thresh, lines, d):
+
     # This line meets the threshold
     if abs(linebox[0][0]-linebox[0][1]) < ANGLE_THRESH and \
     abs(linebox[1][0]-linebox[1][1]) < line_thresh:
@@ -217,36 +216,50 @@ def small_enough(linebox, points, line_thresh, lines, d):
         r_avg = np.mean(linebox[1])
         new_line = (theta_avg, r_avg)
         lb = ((new_line[0],new_line[0]),(new_line[1],new_line[1]))
-        new_quality, points = quality(lb, points, d)
-        # This line is a near duplicate of a previous line
-        duplicate_found = False
-        i = 0
-        while i < len(lines):
-            # These lines are too similar to coexist
-            if (abs(lines[i][1][0] - new_line[0]) < 2*ANGLE_THRESH and \
-            abs(lines[i][1][1] - new_line[1]) < 2*line_thresh) or \
-            has_intersection(points,lines[i][2]):
-
-                j = 0
-                # The new_line is more accurate.  Replace the old
-                if not duplicate_found:
-                    if new_line[0] < new_quality: lines[i] = (new_quality, new_line, points)
-                    # Stop searching for duplicates
-                    duplicate_found = True
-                    j = i
-                    i += 1
-                # Absorb other duplicates
-                else:
-                    if lines[j][0] < lines[i][j]: lines[j] = lines[i]
-                    lines = lines[:i] + lines[i+1:]
-
-            else: i+=1
-    
-        # This line is not a duplicate
-        if not duplicate_found: lines += [ (new_quality, new_line, points) ]
+        new_quality, _ = quality(lb, points, d)
+        lines += [(new_quality, (theta_avg, r_avg), points)]
         return True
 
     return False
+
+#        theta_avg = np.mean(linebox[0])
+#        r_avg = np.mean(linebox[1])
+#        new_line = (theta_avg, r_avg)
+#        lb = ((new_line[0],new_line[0]),(new_line[1],new_line[1]))
+#        new_quality, _ = quality(lb, points, d)
+#        # This line is a near duplicate of a previous line
+#        duplicate_found = False
+#        i = 0
+#        j = 0
+#        while i < len(lines):
+#            # These lines are too similar to coexist
+#            if (abs(lines[i][1][0] - new_line[0]) < 2*ANGLE_THRESH and \
+#            abs(lines[i][1][1] - new_line[1]) < 2*line_thresh) or \
+#            has_intersection(points,lines[i][2]):
+#
+#                # The new_line is more accurate.  Replace the old
+#                if not duplicate_found:
+#                    if lines[i][0] < new_quality: 
+#                        lines[i] = (new_quality, new_line, points)
+#                        # Stop searching for duplicates
+#                        duplicate_found = True
+#                        j = i
+#                        i += 1
+#                        break
+#                    else: break
+#
+#                # Absorb other duplicates
+#                else:
+#                    if lines[j][0] < lines[i][0]: lines[j] = lines[i]
+#                    lines = lines[:i] + lines[i+1:]
+#
+#            else: i+=1
+#    
+#        # This line is not a duplicate
+#        if not duplicate_found: lines += [ (new_quality, new_line, points) ]
+#        return True
+#
+#    return False
 
 def only_intersection(linebox, obstacle):
 # The value is True if there is an intersection between any of the 
@@ -312,17 +325,18 @@ def linebox_split(linebox, line_thresh):
     r_range     = linebox[1][1]-linebox[1][0]
 
     # Case Theta is much smaller than r
-    if theta_range/ANGLE_THRESH < r_range/line_thresh:
+    if (not r_range < line_thresh) and \
+    (theta_range < ANGLE_THRESH or
+    theta_range/ANGLE_THRESH < r_range/line_thresh):
 
         # Split this box in half along its r values
-        avg_r     = np.mean(linebox[1])
+        avg_r   = np.mean(linebox[1])
         low_box = deepcopy(linebox)
         low_box[1][1] = avg_r
         linebox[1][0] = avg_r
 
     # Case: Theta is much bigger than r
     else:
-
         # Split this box in half along its theta values
         avg_theta = np.mean(linebox[0])
         low_box = deepcopy(linebox)
@@ -336,7 +350,7 @@ def enqueue_lb( queue, sub_linebox, points, obs, d ):
     
     # Only look at lines that have the potential to be quality
     sub_quality, sub_points = quality(sub_linebox, points, d)
-    if sub_points and sub_quality/len(sub_points) > QUALITY_THRESH:
+    if len(sub_points) > 1 and sub_quality > QUALITY_MIN:
 
         queue.put((
             -sub_quality,
@@ -345,26 +359,22 @@ def enqueue_lb( queue, sub_linebox, points, obs, d ):
             obs
         ))
 
-def error_check(pts):
-
-    if max( [p[1] for p in pts] ) < 300: 
-    
-        pass
-
 def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
 # Finds the optimal line via branch and bound methods
 
-    # Set the distance threshold
+    # Set some thresholds
     global EPSILON_SQR
+    global QUALITY_MIN
+    QUALITY_MIN = QUALITY_THRESH * int(np.sqrt(len(points)))/6
     EPSILON_SQR = eps**2/4
-    line_thresh = .25
-    min_angle = np.pi/2-.25
-    max_angle = np.pi/2+.25
+    line_thresh = eps*COARSE
+    min_angle = np.pi/2-.2
+    max_angle = np.pi/2+.2
     min_line = -img_w/np.sqrt(2)
     max_line = img_w/np.sqrt(2)+img_h/np.sqrt(2)
 
     # Functor for terminating splits and adding accepted lines
-    #acceptor = is_accurate( min_angle, max_angle, min_line, max_line, line_thresh)
+    acceptor = is_accurate( min_angle, max_angle, min_line, max_line, line_thresh)
     lines = []
     
     # The initial bounds of the linebox
@@ -384,77 +394,76 @@ def get_lines( (img_h,img_w), points, obstacles, (eps, d)):
         # Get the linebox with the highest upperbound on quality
         ub_quality, lb, points_p, obs_p = queue.get()
         ub_quality *= -1
-        if lines:
-            print len(lines), lines[-1][0]
+#        if lines:
+#            print len(lines), lines[-1][0]
 
         # Split this box if its too large to attempt to add to our lines
-        if not small_enough(lb, points_p, line_thresh, lines,d):
+        if not acceptor(lb, points_p, line_thresh, d):
 
             # Split this linebox to make is smaller
             sub_lineboxes = linebox_split(lb,line_thresh)
             # Get rid of obstacles that can't be encountered anymore
-            pruned_obs = [ obs for obs in obs_p if not no_intersection(lb, obs)]
+            pruned_obs = [obs for obs in obs_p if not no_intersection(lb, obs)]
             # Split the lineboxes along blocking obstacles
             for sub_linebox in sub_lineboxes:
 
-                # Get index for all obstacles that completely block the path
-                blocking = [ i for i in xrange(len(pruned_obs))
-                            if only_intersection(sub_linebox, pruned_obs[i]) ]
+                enqueue_lb(queue, sub_linebox, points_p, pruned_obs, d)
 
-                # Greedilly start splitting sub_linebox from left to right
-                sort_functor = lambda i: pruned_obs[i].left
-                blocking = sorted( blocking, key=sort_functor )
+#                # Get index for all obstacles that completely block the path
+#                blocking = [ i for i in xrange(len(pruned_obs))
+#                            if only_intersection(sub_linebox, pruned_obs[i]) ]
+#                # Greedilly start splitting sub_linebox from left to right
+#                sort_functor = lambda i: pruned_obs[i].left
+#                blocking = sorted( blocking, key=sort_functor )
+#                # If there are no blocking obstacles, enqueue normally
+#                if not blocking:
+#
+#                    enqueue_lb(queue, sub_linebox, points_p, pruned_obs, d)
+#
+#                # Points need to be split along this lb/obstacle combo
+#                else:
+#
+#                    relevant_obs = [ pruned_obs[i]
+#                                    for i in xrange(len(pruned_obs))
+#                                    if i not in blocking ]
+#                    # Start greedily splitting points along the leftmost obs
+#                    right = points_p
+#                    for i in blocking:
+#
+#                        # Split points into a left and right subgroup divided
+#                        # by the obstacle
+#                        left = []
+#                        j = 0
+#                        while j < len(right):
+#
+#                            if right[j][0] < pruned_obs[i].left:
+#                                
+#                                left += [right[j]]
+#                                right = right[:j] + right[j+1:]
+#
+#                            else: j+=1
+#
+#                        # Add these new split lineboxes to the queue
+#                        if left:
+#                            enqueue_lb(
+#                                queue,
+#                                sub_linebox,
+#                                left,
+#                                relevant_obs,
+#                                d
+#                            )
+#
+#                    # Remember the last remaining right linebox
+#                    if right:
+#                        enqueue_lb(
+#                            queue,
+#                            sub_linebox,
+#                            right,
+#                            relevant_obs,
+#                            d
+#                        )
 
-                # If there are no blocking obstacles, enqueue normally
-                if not blocking:
-
-                    enqueue_lb(queue, sub_linebox, points_p, pruned_obs, d)
-
-                # Points need to be split along this lb/obstacle combo
-                else:
-
-                    relevant_obs = [ pruned_obs[i]
-                                    for i in xrange(len(pruned_obs))
-                                    if i not in blocking ]
-
-                    # Start greedily splitting points along the leftmost obs
-                    right = points_p
-                    for i in blocking:
-
-                        # Split points into a left and right subgroup divided
-                        # by the obstacle
-                        left = []
-                        j = 0
-                        while j < len(right):
-
-                            if right[j][0] < pruned_obs[i].left:
-                                
-                                left += [right[j]]
-                                right = right[:j] + right[j+1:]
-
-                            else: j+=1
-
-                        # Add these new split lineboxes to the queue
-                        if left:
-                            enqueue_lb(
-                                queue,
-                                sub_linebox,
-                                left,
-                                relevant_obs,
-                                d
-                            )
-
-                    # Remember the last remaining right linebox
-                    if right:
-                        enqueue_lb(
-                            queue,
-                            sub_linebox,
-                            right,
-                            relevant_obs,
-                            d
-                        )
-
-    return lines
+    return acceptor.output()
 
 import sys
 import components
