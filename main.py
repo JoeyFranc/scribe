@@ -56,8 +56,10 @@ for file_name in sys.argv[1:]:
         cv.line(img, tuple((pts[0][0]-dist0*unit).astype(int)), 
             tuple((pts[-1][0]-dist1*unit).astype(int)), (0,0,255), 1)
 
-    cv.imwrite('final.jpg', img)
-    #tbformat.format(text_lines)
+    cv.imwrite('out_'+file_name, img)
+
+    # Format recovery
+    tbformat.format(text_lines)
 
     # Optical Character Recognition
     # Make a Latex file
