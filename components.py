@@ -81,7 +81,6 @@ def get_components(img):
 
     return [CharRect(r) for r in rects]
 
-
 import sys
 if __name__ == '__main__':
 

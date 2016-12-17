@@ -12,8 +12,6 @@ from getLines import get_lines
 from postprocess import post_process
 import tbformat
 
-
-
 def get_line_params(characters):
 # Returns approximate x_height and descender line distance of characters
 
@@ -36,6 +34,7 @@ for file_name in sys.argv[1:]:
     white_spaces = recWhiteSpace(Obstacle(0,0,img_w,img_h), obstacles)
     white_spaces = [TextBlock((obs.x,obs.y), (obs.x+obs.w,obs.y+obs.h))
                     for obs in white_spaces]
+    for obs in white_spaces: obs.draw(img)
     print len(white_spaces), 'obstacles'
     characters = get_components(img)
     x_height, d_line, c_width = get_line_params(characters)
@@ -58,7 +57,7 @@ for file_name in sys.argv[1:]:
         cv.line(img, tuple((pts[0][0]-dist0*unit).astype(int)), 
             tuple((pts[-1][0]-dist1*unit).astype(int)), (0,0,255), 1)
 
-    cv.imwrite('out_'+file_name, img)
+    cv.imwrite('out_'+file_name.rsplit('/',1)[-1], img)
 
     # Format recovery
     text_blocks = tbformat.format(text_blocks, x_height/2, c_width, white_spaces)

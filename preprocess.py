@@ -16,7 +16,7 @@ def preprocess(img):
     G_rst = scipy.ndimage.filters.gaussian_filter(rgb2gray(img), 1,order=0, output=None,
                                         mode='reflect', cval=0.0, truncate=4.0)
     # apply median filter
-    M_rst = scipy.signal.medfilt(G_rst, kernel_size=3)
+    M_rst = scipy.signal.medfilt(G_rst, kernel_size=5)
     return np.uint8(np.around(M_rst))
 
 if __name__ == '__main__':
