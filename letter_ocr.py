@@ -1,8 +1,10 @@
 import numpy as np
 import cv2
 import PIL
-import pytesseract
-import textract
+from PIL import ImageEnhance
+# import pytesseract
+# import textract
+from tesserocr import PyTessBaseAPI, RIL
 import block
 from recTextBlock import *
 
@@ -28,15 +30,22 @@ for i in range(rows):
             if zero_start == -1:
                 zero_start = j
 
-out, ctrs, hierarchy = cv2.findContours(im_h.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-text_extracted = []
+ctrs, hierarchy = cv2.findContours(im_h.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#text_extracted = []
+
+im_ocr = cv2.imread(img_name, 0)
+_, im_ocr = cv2.threshold(im_ocr, 127, 255, cv2.THRESH_BINARY)
+
 for ctr in ctrs:
     x,y,w,h = cv2.boundingRect(ctr)
-    #cv2.rectangle(im_thre, (x,y), (x+w, y+h), (0,255,0), 2)
-    im_region = PIL.Image.fromarray(im_thre[y:y+h, x:x+w])
-    # text = pytesseract.image_to_string(im_region)
-    text = textract.process(im_region, method='tesseract')
-    text_extracted.append(text)
-print (text_extracted)
-#cv2.imshow('im', im_thre)
+    #cv2.rectangle(im, (x,y), (x+w, y+h), (0,255,0), 2)
+    im_region = PIL.Image.fromarray(im_ocr[y:y+h, x:x+w])
+    im_region = ImageEnhance.Contrast(im_region)
+    im_region = im_region.enhance(4)
+    #cv2.imshow('im',im_ocr[y:y+h, x:w+w])
+    #cv2.waitKey(0)
+    text = tesserocr.image_to_text(im_region)
+    #text_extracted.append(text)
+    print ocrResult
+#cv2.imshow('im', im)
 #cv2.waitKey(0)
